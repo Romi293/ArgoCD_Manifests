@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
       - name: weatherapp-cont
-        image: romi293/weather_app:152
+        image: romi293/weather_app:153
         ports:
         - containerPort: 80
