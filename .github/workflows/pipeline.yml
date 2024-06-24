@@ -33,12 +33,6 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/weather_app:${{ env.TAG }}
 
-       # - name: Checkout second repository
-      #   uses: actions/checkout@v2
-      #   with:
-      #     repository: Romi293/ArgoCD_Manifests
-      #     token: ${{ secrets.SECOND_REPO_TOKEN }}
-      #     # path: argocd-repo
 
       - name: Update Kubernetes manifest
         run: |
