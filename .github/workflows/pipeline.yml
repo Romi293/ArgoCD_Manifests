@@ -1,43 +1,54 @@
-name: ArgoCD_Pipeline
+name: Build and Deploy
+
 on:
-  push: 
+  push:
     branches:
       - main
 
 jobs:
-   
   build:
     runs-on: ubuntu-latest
-    env:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build Docker Image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Git commit hash
+        id: get_commit
+        run: echo "TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Build and push Docker image
+        id: docker_build
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/weather_app:${{ env.TAG }}
+
+      - name: Checkout second repository
+        uses: actions/checkout@v2
+        with:
+          repository: Romi293/ArgoCD_Manifests
+          token: ${{ secrets.SECOND_REPO_TOKEN }}
+          # path: argocd-repo
+
+      - name: Update Kubernetes manifest
         run: |
-          echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_ENV
-          echo "New Version: ${NEW_VERSION}"
-          docker build --build-arg VERSION_NUMBER=${{ env.NEW_VERSION }} -t "romi293/weather_app:${NEW_VERSION}" .
-          
-      - name: Publish to DockerHub
+          sed -i 's|image: .*$|image: '"${{ secrets.DOCKERHUB_USERNAME }}/weather_app:${{ env.TAG }}"'|' ArgoCD_Manifests/.github/workflows/pipeline.yml
+
+      - name: Commit and push changes
         run: |
-          echo $DOCKERHUB_TOKEN | docker login -u $DOCKERHUB_USERNAME --password-stdin
-          docker tag "romi293/weather_app:${NEW_VERSION}" "romi293/weather_app:${NEW_VERSION}"
-          docker push "romi293/weather_app:${NEW_VERSION}"
-      
-
-       
-########################################################
-
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Pull image from DockerHub
-        run: 
-          docker pull "romi293/weather_app:${NEW_VERSION}"
-
-     
-
+          # cd argocd-repo
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add .
+          git commit -m 'Update Docker image to ${{ env.TAG }}'
+          git push
